@@ -74,7 +74,7 @@ module.exports.recognizeFaces = async (event) => {
     };
 
     const faces = await rekognition.searchFacesByImage(params).promise();
-    const matchingImageUrls = await Promise.all(faces.FaceMatches.map(async faceMatch => {
+    const recognizedFaces = await Promise.all(faces.FaceMatches.map(async faceMatch => {
       const key = faceMatch.Face.ExternalImageId;
       const dbParams = {
         TableName: PHOTOS_TABLE,
@@ -84,12 +84,14 @@ module.exports.recognizeFaces = async (event) => {
       };
 
       const result = await dynamodb.get(dbParams).promise();
-      return result.Item ? result.Item.imageUrl : null;
+      return result.Item; // Return the full item, including imageUrl, comments, and posterName
     }));
+
+    const filteredFaces = recognizedFaces.filter(face => face !== null); // Filter out any null values
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ ...faces, matchingImageUrls }),
+      body: JSON.stringify({ faces: filteredFaces }), // Use the "faces" key here
     };
   } catch (error) {
     console.error("Error processing image:", error);

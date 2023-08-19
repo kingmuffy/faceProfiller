@@ -48,7 +48,7 @@ functions:
           method: post
 
   getPhotos:
-    handler: Functions/savePhoto.getPhotos
+    handler: Functions/getPhotos.getPhotos
     events:
       - httpApi:
           path: /
