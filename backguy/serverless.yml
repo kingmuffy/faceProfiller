@@ -53,6 +53,7 @@ functions:
       - httpApi:
           path: /
           method: get
+          cors: true
       
 
 
