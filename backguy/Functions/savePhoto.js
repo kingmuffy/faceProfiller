@@ -12,14 +12,14 @@ const PHOTOS_TABLE = process.env.PHOTOS_TABLE;
 
 module.exports.indexFaces = async (event) => {
   const parsed = await parser.parse(event);
-  console.log('Parsed data:', parsed);
 
   const file = parsed.files[0];
   const comment = parsed.comment;
+  const topic = parsed.topic; // Extract the topic
   const posterName = parsed.posterName;
   const sanitizedFilename = file.filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
   const extension = file.filename.split('.').pop();
-  const key = `${sanitizedFilename}-${uuidv4()}.${extension}`; // Key with sanitized filename, UUID, and extension
+  const key = `${sanitizedFilename}-${uuidv4()}.${extension}`; 
 
   await s3.putObject({
     Bucket: BUCKET_NAME,
@@ -35,7 +35,9 @@ module.exports.indexFaces = async (event) => {
       ExternalImageId: key,
       imageUrl: imageUrl,
       comments: [comment],
+      topic: topic, // Store the topic
       posterName: posterName,
+      timestamp: new Date().toISOString(), // Store timestamp
     },
   };
 
@@ -58,7 +60,6 @@ module.exports.indexFaces = async (event) => {
     body: JSON.stringify({ ...result, imageUrl }),
   };
 };
-
 module.exports.recognizeFaces = async (event) => {
   try {
     const { files } = await parser.parse(event);
@@ -74,7 +75,9 @@ module.exports.recognizeFaces = async (event) => {
     };
 
     const faces = await rekognition.searchFacesByImage(params).promise();
-    const recognizedFaces = await Promise.all(faces.FaceMatches.map(async faceMatch => {
+
+    const recognizedFaces = []; // Changed to an array
+    for (const faceMatch of faces.FaceMatches) {
       const key = faceMatch.Face.ExternalImageId;
       const dbParams = {
         TableName: PHOTOS_TABLE,
@@ -84,14 +87,14 @@ module.exports.recognizeFaces = async (event) => {
       };
 
       const result = await dynamodb.get(dbParams).promise();
-      return result.Item; // Return the full item, including imageUrl, comments, and posterName
-    }));
-
-    const filteredFaces = recognizedFaces.filter(face => face !== null); // Filter out any null values
+      if (result.Item) {
+        recognizedFaces.push(result.Item); // Only push the item if it's not null
+      }
+    }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ faces: filteredFaces }), // Use the "faces" key here
+      body: JSON.stringify({ faces: recognizedFaces }), // No need to filter faces here
     };
   } catch (error) {
     console.error("Error processing image:", error);
